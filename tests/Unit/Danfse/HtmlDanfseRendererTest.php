@@ -14,11 +14,11 @@ it('renders html danfse from nfse fixture', function () {
 
     expect($html)
         ->toContain('<!DOCTYPE html>')
-        ->toContain('DANFSe v2.0')
+        ->toContain('DANFSe v1.0')
         ->toContain('23140031100006672992383000000000004625120025708585')
         ->toContain('NAGILA DE SOUSA FREITAS')
         ->toContain('FUNDO MUNICIPAL DE SAUDE')
-        ->toContain('Valor líquido NFS-e');
+        ->toContain('Valor Líquido da NFS-e');
 });
 
 it('renders homologacao banner when tpAmb is homologacao', function () {

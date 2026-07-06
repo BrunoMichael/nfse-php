@@ -18,7 +18,7 @@ it('maps nfse fixture to danfse view model', function () {
         ->and($view->prestadorNome)->toContain('NAGILA')
         ->and($view->tomadorIdentificado)->toBeTrue()
         ->and($view->tomadorNome)->toContain('FUNDO MUNICIPAL')
-        ->and($view->valorLiquidoNfse)->toBe('1.757,50')
+        ->and($view->valorLiquidoNfse)->toBe('R$ 1.757,50')
         ->and($view->exibirTributacaoIssqn)->toBeTrue();
 });
 

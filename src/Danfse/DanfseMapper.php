@@ -45,6 +45,9 @@ final class DanfseMapper
         $view->marcaDagua = $watermark ?? $this->detectWatermark($inf->codigoStatus);
 
         $view->municipioEmissor = DanfseFormatter::dash($inf->localEmissao);
+        $view->prefeituraNome = $inf->localEmissao
+            ? 'PREFEITURA MUNICIPAL DE '.mb_strtoupper($inf->localEmissao)
+            : '-';
         $view->ambienteGerador = $inf->ambienteGerador?->label() ?? '-';
         $view->tipoAmbiente = $infDps?->tipoAmbiente?->label() ?? '-';
 
@@ -60,8 +63,8 @@ final class DanfseMapper
         $view->situacaoNfse = DanfseFormatter::truncate($inf->codigoStatus?->label() ?? '-', 40);
         $view->finalidade = '-';
 
-        $this->mapPrestador($view, $infDps, $inf->emitente);
-        $this->mapTomador($view, $infDps?->tomador);
+        $this->mapPrestador($view, $infDps, $inf->emitente, $inf->localEmissao);
+        $this->mapTomador($view, $infDps?->tomador, $inf->localPrestacao);
         $this->mapIntermediario($view, $infDps?->intermediario);
         $this->mapServico($view, $inf, $infDps);
         $this->mapIssqn($view, $inf, $infDps);
@@ -80,7 +83,7 @@ final class DanfseMapper
         };
     }
 
-    private function mapPrestador(DanfseViewModel $view, ?InfDpsData $infDps, $emitente): void
+    private function mapPrestador(DanfseViewModel $view, ?InfDpsData $infDps, $emitente, ?string $localEmissao = null): void
     {
         $prestador = $infDps?->prestador;
 
@@ -100,9 +103,15 @@ final class DanfseMapper
                 $view->prestadorNome,
                 $view->prestadorMunicipioUf,
                 $view->prestadorCodigoIbgeCep,
-                $view->prestadorEndereco,
-                $view->prestadorEmail,
-            );
+            $view->prestadorEndereco,
+            $view->prestadorEmail,
+            $localEmissao,
+        );
+
+        if ($view->prestadorMunicipioUf !== '-') {
+            $view->prestadorMunicipio = $view->prestadorMunicipioUf;
+            $view->prestadorCep = $view->prestadorCodigoIbgeCep;
+        }
 
             $regime = $prestador->regimeTributario;
             if ($regime) {
@@ -141,13 +150,17 @@ final class DanfseMapper
             }
 
             if ($emitente->endereco && ($view->prestadorMunicipioUf === '-' || $view->prestadorCodigoIbgeCep === '-')) {
-                $view->prestadorMunicipioUf = DanfseFormatter::dash($emitente->endereco->codigoMunicipio).' / '.DanfseFormatter::dash($emitente->endereco->uf);
-                $view->prestadorCodigoIbgeCep = DanfseFormatter::dash($emitente->endereco->codigoMunicipio).' / '.DanfseFormatter::formatCep($emitente->endereco->cep);
+                $cidade = DanfseFormatter::dash($localEmissao);
+                $uf = DanfseFormatter::dash($emitente->endereco->uf);
+                $view->prestadorMunicipio = $cidade !== '-' ? $cidade.' - '.$uf : '-';
+                $view->prestadorMunicipioUf = $view->prestadorMunicipio;
+                $view->prestadorCep = DanfseFormatter::formatCep($emitente->endereco->cep);
+                $view->prestadorCodigoIbgeCep = $view->prestadorCep;
             }
         }
     }
 
-    private function mapTomador(DanfseViewModel $view, ?TomadorData $tomador): void
+    private function mapTomador(DanfseViewModel $view, ?TomadorData $tomador, ?string $localPrestacao = null): void
     {
         if ($tomador === null || (! $tomador->cpf && ! $tomador->cnpj && ! $tomador->nif && ! $tomador->nome)) {
             $view->tomadorIdentificado = false;
@@ -173,7 +186,13 @@ final class DanfseMapper
             $view->tomadorCodigoIbgeCep,
             $view->tomadorEndereco,
             $view->tomadorEmail,
+            $localPrestacao,
         );
+
+        if ($view->tomadorMunicipioUf !== '-') {
+            $view->tomadorMunicipio = $view->tomadorMunicipioUf;
+            $view->tomadorCep = $view->tomadorCodigoIbgeCep;
+        }
     }
 
     private function mapIntermediario(DanfseViewModel $view, $intermediario): void
@@ -222,20 +241,25 @@ final class DanfseMapper
         string &$codigoCep,
         string &$enderecoOut,
         string &$emailOut,
+        ?string $nomeMunicipioFallback = null,
     ): void {
         $documento = DanfseFormatter::documento($cpf, $cnpj, $nif);
         $inscricao = DanfseFormatter::dash($im);
-        $fone = DanfseFormatter::dash($telefone);
-        $nomeOut = DanfseFormatter::truncate($nome, 80);
+        $fone = DanfseFormatter::formatTelefone($telefone);
+        $nomeOut = DanfseFormatter::truncate($nome, 120);
         $emailOut = DanfseFormatter::dash($email);
         $enderecoOut = DanfseFormatter::enderecoNacional($endereco);
 
         if ($endereco) {
-            $municipio = $endereco->codigoMunicipio;
-            $cep = $endereco->cep;
-            $uf = property_exists($endereco, 'uf') ? ($endereco->uf ?? '-') : '-';
-            $municipioUf = DanfseFormatter::dash($municipio).' / '.DanfseFormatter::dash($uf);
-            $codigoCep = DanfseFormatter::dash($municipio).' / '.DanfseFormatter::formatCep($cep);
+            $uf = property_exists($endereco, 'uf') ? ($endereco->uf ?? null) : null;
+            $cidade = DanfseFormatter::dash($nomeMunicipioFallback);
+            if ($cidade !== '-') {
+                $municipioDisplay = $uf ? $cidade.' - '.$uf : $cidade;
+            } else {
+                $municipioDisplay = DanfseFormatter::dash($endereco->codigoMunicipio).($uf ? ' - '.$uf : '');
+            }
+            $municipioUf = $municipioDisplay ?: '-';
+            $codigoCep = DanfseFormatter::formatCep($endereco->cep);
         }
     }
 
@@ -246,14 +270,16 @@ final class DanfseMapper
 
         $codTribNac = $codigoServico?->codigoTributacaoNacional;
         $codTribMun = $codigoServico?->codigoTributacaoMunicipal;
-        $view->codigoTributacao = trim(DanfseFormatter::dash($codTribNac).' / '.DanfseFormatter::dash($codTribMun), ' /');
-        if ($view->codigoTributacao === '- / -') {
-            $view->codigoTributacao = '-';
-        }
+        $view->codigoTributacaoNacional = DanfseFormatter::codigoTributacaoNacional(
+            $codTribNac,
+            $inf->descricaoTributacaoNacional
+        );
+        $view->codigoTributacaoMunicipal = DanfseFormatter::dash($codTribMun);
+        $view->codigoTributacao = $view->codigoTributacaoNacional;
 
         $view->codigoNbs = DanfseFormatter::dash($codigoServico?->codigoNbs);
-        $local = $inf->localPrestacao ?? $infDps?->servico?->localPrestacao?->codigoLocalPrestacao;
-        $view->localPrestacao = DanfseFormatter::dash($local).' / - / BR';
+        $view->localPrestacao = DanfseFormatter::dash($inf->localPrestacao ?? $inf->localEmissao);
+        $view->paisPrestacao = '-';
 
         $descMun = $inf->descricaoTributacaoMunicipal;
         $descNac = $inf->descricaoTributacaoNacional;
@@ -275,17 +301,19 @@ final class DanfseMapper
         $view->tipoTributacaoIssqn = $tribIssqn instanceof TributacaoIssqn
             ? $tribIssqn->label()
             : '-';
-        $view->municipioIncidenciaIssqn = DanfseFormatter::dash($inf->nomeLocalIncidencia).' / - / BR';
+        $view->municipioIncidenciaIssqn = DanfseFormatter::dash($inf->nomeLocalIncidencia);
         $view->regimeEspecialIssqn = $infDps?->prestador?->regimeTributario?->regimeEspecialTributacao instanceof RegimeEspecialTributacao
             ? DanfseFormatter::truncate($infDps->prestador->regimeTributario->regimeEspecialTributacao->label(), 27)
             : '-';
         $view->retencaoIssqn = $tributacao?->tipoRetencaoIssqn instanceof TipoRetencaoIssqn
             ? $tributacao->tipoRetencaoIssqn->label()
             : '-';
+        $view->issqnRetido = $view->retencaoIssqn;
 
-        $view->baseCalculoIssqn = DanfseFormatter::money($inf->valores?->baseCalculo);
+        $view->baseCalculoIssqn = DanfseFormatter::moneyReal($inf->valores?->baseCalculo);
         $view->aliquotaIssqn = DanfseFormatter::percent($inf->valores?->aliquotaAplicada);
-        $view->valorIssqn = DanfseFormatter::money($inf->valores?->valorIssqn);
+        $view->valorIssqn = DanfseFormatter::moneyReal($inf->valores?->valorIssqn);
+        $view->valorServico = DanfseFormatter::moneyReal($infDps?->valores?->valorServicoPrestado?->valorServico);
 
         $this->mapRetencoesFederais($view, $tributacao);
     }
@@ -296,21 +324,28 @@ final class DanfseMapper
             return;
         }
 
-        $view->irrf = DanfseFormatter::money($tributacao->valorRetidoIrrf);
-        $view->contribuicoesSociaisRetidas = DanfseFormatter::money($tributacao->valorRetidoCsll);
-        $view->pisProprio = DanfseFormatter::money($tributacao->valorPis);
-        $view->cofinsProprio = DanfseFormatter::money($tributacao->valorCofins);
+        $view->irrf = DanfseFormatter::moneyReal($tributacao->valorRetidoIrrf);
+        $view->contribuicoesSociaisRetidas = DanfseFormatter::moneyReal($tributacao->valorRetidoCsll);
+        $view->pisProprio = DanfseFormatter::moneyReal($tributacao->valorPis);
+        $view->cofinsProprio = DanfseFormatter::moneyReal($tributacao->valorCofins);
+
+        $pis = $tributacao->valorPis ?? 0;
+        $cofins = $tributacao->valorCofins ?? 0;
+        if ($pis > 0 || $cofins > 0) {
+            $view->pisCofinsDebitoProprio = DanfseFormatter::moneyReal($pis + $cofins);
+        }
     }
 
     private function mapTotais(DanfseViewModel $view, $inf, ?InfDpsData $infDps): void
     {
         $valoresDps = $infDps?->valores;
 
-        $view->valorOperacao = DanfseFormatter::money($valoresDps?->valorServicoPrestado?->valorServico);
-        $view->descontoIncondicionado = DanfseFormatter::money($valoresDps?->desconto?->valorDescontoIncondicionado);
-        $view->descontoCondicionado = DanfseFormatter::money($valoresDps?->desconto?->valorDescontoCondicionado);
-        $view->totalRetencoes = DanfseFormatter::money($inf->valores?->valorTotalRetido);
-        $view->valorLiquidoNfse = DanfseFormatter::money($inf->valores?->valorLiquido);
+        $view->valorOperacao = DanfseFormatter::moneyReal($valoresDps?->valorServicoPrestado?->valorServico);
+        $view->valorServico = $view->valorOperacao;
+        $view->descontoIncondicionado = DanfseFormatter::moneyReal($valoresDps?->desconto?->valorDescontoIncondicionado);
+        $view->descontoCondicionado = DanfseFormatter::moneyReal($valoresDps?->desconto?->valorDescontoCondicionado);
+        $view->totalRetencoes = DanfseFormatter::moneyReal($inf->valores?->valorTotalRetido);
+        $view->valorLiquidoNfse = DanfseFormatter::moneyReal($inf->valores?->valorLiquido);
     }
 
     private function mapIbsCbs(DanfseViewModel $view, $inf, ?InfDpsData $infDps): void
@@ -343,7 +378,7 @@ final class DanfseMapper
         $valores = $computed->valores;
         $totais = $computed->totalizadores;
 
-        $view->baseCalculoIbsCbs = DanfseFormatter::money($valores?->baseCalculo);
+        $view->baseCalculoIbsCbs = DanfseFormatter::moneyReal($valores?->baseCalculo);
         $view->reducaoAliquotaIbsCbs = DanfseFormatter::percent($computed->percentualRedutor);
 
         $view->aliquotaIbs = DanfseFormatter::percent(
@@ -351,18 +386,18 @@ final class DanfseMapper
         );
         $view->aliquotaEfetivaIbsEstadual = DanfseFormatter::percent($valores?->uf?->aliquotaEfetivaUf);
         $view->aliquotaEfetivaIbsMunicipal = DanfseFormatter::percent($valores?->municipio?->aliquotaEfetivaMunicipal);
-        $view->valorIbsEstadual = DanfseFormatter::money($totais?->totalIbs?->totalUf?->valorIbsUf);
-        $view->valorIbsMunicipal = DanfseFormatter::money($totais?->totalIbs?->totalMunicipal?->valorIbsMunicipal);
-        $view->valorTotalIbs = DanfseFormatter::money($totais?->totalIbs?->valorTotalIbs);
+        $view->valorIbsEstadual = DanfseFormatter::moneyReal($totais?->totalIbs?->totalUf?->valorIbsUf);
+        $view->valorIbsMunicipal = DanfseFormatter::moneyReal($totais?->totalIbs?->totalMunicipal?->valorIbsMunicipal);
+        $view->valorTotalIbs = DanfseFormatter::moneyReal($totais?->totalIbs?->valorTotalIbs);
 
         $view->aliquotaCbs = DanfseFormatter::percent($valores?->federal?->aliquotaCbs);
         $view->aliquotaEfetivaCbs = DanfseFormatter::percent($valores?->federal?->aliquotaEfetivaCbs);
-        $view->valorTotalCbs = DanfseFormatter::money($totais?->totalCbs?->valorCbs);
+        $view->valorTotalCbs = DanfseFormatter::moneyReal($totais?->totalCbs?->valorCbs);
 
         $totalIbs = $totais?->totalIbs?->valorTotalIbs ?? 0;
         $totalCbs = $totais?->totalCbs?->valorCbs ?? 0;
-        $view->totalIbsCbs = DanfseFormatter::money($totalIbs + $totalCbs);
-        $view->valorLiquidoComIbsCbs = DanfseFormatter::money($totais?->valorTotalNf);
+        $view->totalIbsCbs = DanfseFormatter::moneyReal($totalIbs + $totalCbs);
+        $view->valorLiquidoComIbsCbs = DanfseFormatter::moneyReal($totais?->valorTotalNf);
     }
 
     private function mapInformacoesComplementares(DanfseViewModel $view, $inf, ?InfDpsData $infDps): void
@@ -380,15 +415,19 @@ final class DanfseMapper
 
         $tributacao = $infDps?->valores?->tributacao;
         if ($tributacao) {
+            $view->totalTributosFederais = DanfseFormatter::moneyReal($tributacao->valorTotalTributosFederais);
+            $view->totalTributosEstaduais = DanfseFormatter::moneyReal($tributacao->valorTotalTributosEstaduais);
+            $view->totalTributosMunicipais = DanfseFormatter::moneyReal($tributacao->valorTotalTributosMunicipais);
+
             $totais = [];
             if ($tributacao->valorTotalTributosFederais !== null) {
-                $totais[] = 'Federais: R$ '.DanfseFormatter::money($tributacao->valorTotalTributosFederais);
+                $totais[] = 'Federais: '.DanfseFormatter::moneyReal($tributacao->valorTotalTributosFederais);
             }
             if ($tributacao->valorTotalTributosEstaduais !== null) {
-                $totais[] = 'Estaduais: R$ '.DanfseFormatter::money($tributacao->valorTotalTributosEstaduais);
+                $totais[] = 'Estaduais: '.DanfseFormatter::moneyReal($tributacao->valorTotalTributosEstaduais);
             }
             if ($tributacao->valorTotalTributosMunicipais !== null) {
-                $totais[] = 'Municipais: R$ '.DanfseFormatter::money($tributacao->valorTotalTributosMunicipais);
+                $totais[] = 'Municipais: '.DanfseFormatter::moneyReal($tributacao->valorTotalTributosMunicipais);
             }
 
             if ($totais !== []) {

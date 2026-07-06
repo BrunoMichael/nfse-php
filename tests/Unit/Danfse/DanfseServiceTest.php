@@ -18,7 +18,7 @@ it('generates html via danfse service from xml', function () {
     $xml = file_get_contents(__DIR__.'/../../fixtures/xml/ExemploPrestadorPessoaFisica.xml');
     $html = $nfseSdk->danfse()->gerarDeXml($xml);
 
-    expect($html)->toContain('DANFSe v2.0');
+    expect($html)->toContain('DANFSe v1.0');
 });
 
 it('generates html from nfse dto', function () {

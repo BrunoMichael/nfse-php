@@ -20,6 +20,50 @@ final class DanfseFormatter
         return number_format($value, 2, ',', '.');
     }
 
+    public static function moneyReal(?float $value): string
+    {
+        if ($value === null) {
+            return '-';
+        }
+
+        return 'R$ '.self::money($value);
+    }
+
+    public static function codigoTributacaoNacional(?string $codigo, ?string $descricao = null): string
+    {
+        if ($codigo === null || $codigo === '') {
+            return '-';
+        }
+
+        $digits = preg_replace('/\D/', '', $codigo) ?? '';
+        if (strlen($digits) === 6) {
+            $codigo = substr($digits, 0, 2).'.'.substr($digits, 2, 2).'.'.substr($digits, 4, 2);
+        }
+
+        if ($descricao) {
+            return self::truncate($codigo.' - '.$descricao, 90);
+        }
+
+        return $codigo;
+    }
+
+    public static function formatTelefone(?string $telefone): string
+    {
+        if ($telefone === null || $telefone === '') {
+            return '-';
+        }
+
+        $digits = preg_replace('/\D/', '', $telefone) ?? '';
+        if (strlen($digits) === 11) {
+            return '('.substr($digits, 0, 2).') '.substr($digits, 2, 5).'-'.substr($digits, 7);
+        }
+        if (strlen($digits) === 10) {
+            return '('.substr($digits, 0, 2).') '.substr($digits, 2, 4).'-'.substr($digits, 6);
+        }
+
+        return $telefone;
+    }
+
     public static function percent(?float $value): string
     {
         if ($value === null) {

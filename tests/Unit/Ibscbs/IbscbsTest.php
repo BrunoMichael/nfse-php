@@ -59,10 +59,10 @@ it('maps ibscbs fields to danfse view model', function () {
     expect($view->exibirTributacaoIbsCbs)->toBeTrue()
         ->and($view->finalidade)->toBe('NFS-e regular')
         ->and($view->cstClassTrib)->toBe('000 / 000001')
-        ->and($view->baseCalculoIbsCbs)->toBe('8.740,00')
-        ->and($view->valorTotalIbs)->toBe('8,74')
-        ->and($view->valorTotalCbs)->toBe('78,66')
-        ->and($view->valorLiquidoComIbsCbs)->toBe('9.385,00');
+        ->and($view->baseCalculoIbsCbs)->toBe('R$ 8.740,00')
+        ->and($view->valorTotalIbs)->toBe('R$ 8,74')
+        ->and($view->valorTotalCbs)->toBe('R$ 78,66')
+        ->and($view->valorLiquidoComIbsCbs)->toBe('R$ 9.385,00');
 });
 
 it('renders ibscbs section in danfse html', function () {
@@ -72,7 +72,7 @@ it('renders ibscbs section in danfse html', function () {
     $html = (new \Nfse\Danfse\Renderer\HtmlDanfseRenderer)->render($view);
 
     expect($html)
-        ->toContain('Tributação IBS/CBS')
+        ->toContain('TRIBUTAÇÃO IBS/CBS')
         ->toContain('000 / 000001')
-        ->toContain('8.740,00');
+        ->toContain('R$ 8.740,00');
 });

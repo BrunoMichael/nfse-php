@@ -17,7 +17,17 @@ final class DanfseViewModel
 
     public ?DanfseWatermark $marcaDagua = null;
 
-    public string $tituloDocumento = 'DANFSe v2.0';
+    public string $tituloDocumento = 'DANFSe v1.0';
+
+    public string $subtituloDocumento = 'Documento Auxiliar da NFS-e';
+
+    public string $prefeituraNome = '-';
+
+    public string $prefeituraSubtitulo = '-';
+
+    public string $prefeituraTelefone = '-';
+
+    public string $prefeituraEmail = '-';
 
     public string $municipioEmissor = '-';
 
@@ -53,6 +63,10 @@ final class DanfseViewModel
 
     public string $prestadorMunicipioUf = '-';
 
+    public string $prestadorMunicipio = '-';
+
+    public string $prestadorCep = '-';
+
     public string $prestadorCodigoIbgeCep = '-';
 
     public string $prestadorEndereco = '-';
@@ -74,6 +88,10 @@ final class DanfseViewModel
     public string $tomadorNome = '-';
 
     public string $tomadorMunicipioUf = '-';
+
+    public string $tomadorMunicipio = '-';
+
+    public string $tomadorCep = '-';
 
     public string $tomadorCodigoIbgeCep = '-';
 
@@ -118,6 +136,12 @@ final class DanfseViewModel
     public string $intermediarioEmail = '-';
 
     public string $codigoTributacao = '-';
+
+    public string $codigoTributacaoNacional = '-';
+
+    public string $codigoTributacaoMunicipal = '-';
+
+    public string $paisPrestacao = '-';
 
     public string $codigoNbs = '-';
 
@@ -200,6 +224,18 @@ final class DanfseViewModel
     public string $valorTotalCbs = '-';
 
     public string $valorOperacao = '-';
+
+    public string $valorServico = '-';
+
+    public string $issqnRetido = '-';
+
+    public string $pisCofinsDebitoProprio = '-';
+
+    public string $totalTributosFederais = '-';
+
+    public string $totalTributosEstaduais = '-';
+
+    public string $totalTributosMunicipais = '-';
 
     public string $descontoIncondicionado = '-';
 
