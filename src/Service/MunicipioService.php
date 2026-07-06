@@ -7,29 +7,38 @@ use Nfse\Http\Client\AdnClient;
 use Nfse\Http\Client\CncClient;
 use Nfse\Http\NfseContext;
 
+/**
+ * @deprecated Use {@see DistribuicaoService}, {@see ParametrosService} e {@see CadastroService}.
+ */
 class MunicipioService
 {
     private AdnClient $adnClient;
 
-    private CncClient $cncClient;
+    private DistribuicaoService $distribuicaoService;
 
-    public function __construct(NfseContext $context)
-    {
-        $this->adnClient = new AdnClient($context);
-        $this->cncClient = new CncClient($context);
+    private ParametrosService $parametrosService;
+
+    private CadastroService $cadastroService;
+
+    public function __construct(
+        NfseContext $context,
+        ?AdnClient $adnClient = null,
+        ?CncClient $cncClient = null,
+    ) {
+        $this->adnClient = $adnClient ?? new AdnClient($context);
+        $cncClient ??= new CncClient($context);
+
+        $this->distribuicaoService = new DistribuicaoService($context, $this->adnClient);
+        $this->parametrosService = new ParametrosService($context, $this->adnClient);
+        $this->cadastroService = new CadastroService($context, $cncClient);
     }
 
-    /**
-     * ADN Município - Baixa arrecadação e notas do município via NSU
-     */
     public function baixarDfe(int $nsu, ?TipoNsu $tipoNSU = null, bool $lote = true): \Nfse\Dto\Http\DistribuicaoDfeResponse
     {
-        return $this->adnClient->baixarDfeMunicipio($nsu, $tipoNSU, $lote);
+        return $this->distribuicaoService->baixarMunicipio($nsu, $tipoNSU, $lote);
     }
 
     /**
-     * Baixa o DANFSe gerado pela API oficial do ambiente nacional.
-     *
      * @deprecated A API oficial do ambiente nacional para geração do Documento Auxiliar
      * da Nota Fiscal de Serviços Eletrônica (DANFSe) será descontinuada em 1º de julho de 2026. A emissão
      * passará a ser responsabilidade dos sistemas emissores, ERPs e softwares das próprias empresas.
@@ -44,68 +53,53 @@ class MunicipioService
         return $this->adnClient->obterDanfse($chaveAcesso);
     }
 
-    /**
-     * ADN Recepção - Envio de lote de documentos XML (DPS, Eventos)
-     */
     public function enviarLote(string $xmlZipB64): array
     {
-        return $this->adnClient->enviarLote($xmlZipB64);
+        return $this->distribuicaoService->enviarLote($xmlZipB64);
     }
 
-    /**
-     * ADN Parâmetros Municipais
-     */
     public function consultarParametrosConvenio(string $codigoMunicipio): \Nfse\Dto\Http\ResultadoConsultaConfiguracoesConvenioResponse
     {
-        return $this->adnClient->consultarParametrosConvenio($codigoMunicipio);
+        return $this->parametrosService->consultarConvenio($codigoMunicipio);
     }
 
     public function consultarAliquota(string $codigoMunicipio, string $codigoServico, string $competencia): \Nfse\Dto\Http\ResultadoConsultaAliquotasResponse
     {
-        return $this->adnClient->consultarAliquota($codigoMunicipio, $codigoServico, $competencia);
+        return $this->parametrosService->consultarAliquota($codigoMunicipio, $codigoServico, $competencia);
     }
 
     public function consultarHistoricoAliquotas(string $codigoMunicipio, string $codigoServico): \Nfse\Dto\Http\ResultadoConsultaAliquotasResponse
     {
-        return $this->adnClient->consultarHistoricoAliquotas($codigoMunicipio, $codigoServico);
+        return $this->parametrosService->consultarHistoricoAliquotas($codigoMunicipio, $codigoServico);
     }
 
     public function consultarBeneficio(string $codigoMunicipio, string $numeroBeneficio, string $competencia): array
     {
-        return $this->adnClient->consultarBeneficio($codigoMunicipio, $numeroBeneficio, $competencia);
+        return $this->parametrosService->consultarBeneficio($codigoMunicipio, $numeroBeneficio, $competencia);
     }
 
     public function consultarRegimesEspeciais(string $codigoMunicipio, string $codigoServico, string $competencia): array
     {
-        return $this->adnClient->consultarRegimesEspeciais($codigoMunicipio, $codigoServico, $competencia);
+        return $this->parametrosService->consultarRegimesEspeciais($codigoMunicipio, $codigoServico, $competencia);
     }
 
     public function consultarRetencoes(string $codigoMunicipio, string $competencia): array
     {
-        return $this->adnClient->consultarRetencoes($codigoMunicipio, $competencia);
+        return $this->parametrosService->consultarRetencoes($codigoMunicipio, $competencia);
     }
 
-    /**
-     * CNC Consulta - Consulta dados atuais de um contribuinte
-     */
     public function consultarContribuinte(string $cpfCnpj): array
     {
-        return $this->cncClient->consultarContribuinte($cpfCnpj);
+        return $this->cadastroService->consultarContribuinte($cpfCnpj);
     }
 
-    /**
-     * CNC Município - Baixa alterações no cadastro nacional via NSU
-     */
     public function baixarAlteracoesCadastro(int $nsu): array
     {
-        return $this->cncClient->baixarAlteracoesCadastro($nsu);
+        return $this->cadastroService->baixarAlteracoes($nsu);
     }
 
-    /**
-     * CNC Recepção - Cadastra ou atualiza um contribuinte no CNC
-     */
     public function atualizarContribuinte(array $dados): array
     {
-        return $this->cncClient->atualizarContribuinte($dados);
+        return $this->cadastroService->atualizarContribuinte($dados);
     }
 }

@@ -13,6 +13,8 @@ final class NfseContext
         public ?string $codigoMunicipio = null,
         public ?\Nfse\Dto\Http\Endpoint $endpoint = null,
         public ?string $certificateContent = null,
+        public bool $validateDpsBeforeEmit = true,
+        public bool $verifySsl = false,
     ) {
         if ($certificatePath === null && $certificateContent === null) {
             throw new \InvalidArgumentException('Informe certificatePath ou certificateContent.');

@@ -137,4 +137,10 @@ class InfNfseData extends Dto
      */
     #[MapFrom('valores')]
     public ?ValoresNfseData $valores = null;
+
+    /**
+     * Grupo IBSCBS calculado pela SEFIN (TCRTCIBSCBS).
+     */
+    #[MapFrom('IBSCBS')]
+    public ?IbscbsNfseData $ibscbs = null;
 }

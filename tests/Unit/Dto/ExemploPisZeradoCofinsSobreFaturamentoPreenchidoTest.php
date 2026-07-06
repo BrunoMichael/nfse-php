@@ -96,6 +96,20 @@ it('can generate XML with all fields from ExemploPisZeradoCofinsSobreFaturamento
                             'totTrib.vTotTrib.vTotTribMun' => 500.00,
                         ],
                     ],
+                    'IBSCBS' => [
+                        'finNFSe' => '0',
+                        'indFinal' => '1',
+                        'cIndOp' => '100301',
+                        'indDest' => '0',
+                        'valores' => [
+                            'trib' => [
+                                'gIBSCBS' => [
+                                    'CST' => '000',
+                                    'cClassTrib' => '000001',
+                                ],
+                            ],
+                        ],
+                    ],
                 ],
             ],
             'emit' => [
@@ -118,6 +132,35 @@ it('can generate XML with all fields from ExemploPisZeradoCofinsSobreFaturamento
                 'vISSQN' => 500.00,
                 'vTotalRet' => 615.00,
                 'vLiq' => 9385.00,
+            ],
+            'IBSCBS' => [
+                'cLocalidadeIncid' => '3303302',
+                'xLocalidadeIncid' => 'Niterói',
+                'valores' => [
+                    'vBC' => 8740.00,
+                    'vCalcReeRepRes' => 0.00,
+                    'uf' => [
+                        'pIBSUF' => 0.10,
+                        'pAliqEfetUF' => 0.10,
+                    ],
+                    'mun' => [
+                        'pIBSMun' => 0.00,
+                        'pAliqEfetMun' => 0.00,
+                    ],
+                    'fed' => [
+                        'pCBS' => 0.90,
+                        'pAliqEfetCBS' => 0.90,
+                    ],
+                ],
+                'totCIBS' => [
+                    'vTotNF' => 9385.00,
+                    'gIBS' => [
+                        'vIBSTot' => 8.74,
+                        'gIBSUFTot' => ['vIBSUF' => 8.74],
+                        'gIBSMunTot' => ['vIBSMun' => 0.00],
+                    ],
+                    'gCBS' => ['vCBS' => 78.66],
+                ],
             ],
         ],
     ]);
@@ -161,6 +204,14 @@ it('can generate XML with all fields from ExemploPisZeradoCofinsSobreFaturamento
         ->and($xml)->toContain('<vISSQN>500.00</vISSQN>')
         ->and($xml)->toContain('<vTotalRet>615.00</vTotalRet>')
         ->and($xml)->toContain('<vLiq>9385.00</vLiq>');
+
+    // Assertions for IBSCBS NFSe
+    expect($xml)->toContain('<cLocalidadeIncid>3303302</cLocalidadeIncid>')
+        ->and($xml)->toContain('<xLocalidadeIncid>Niterói</xLocalidadeIncid>')
+        ->and($xml)->toContain('<vIBSTot>8.74</vIBSTot>')
+        ->and($xml)->toContain('<vCBS>78.66</vCBS>')
+        ->and($xml)->toContain('<finNFSe>0</finNFSe>')
+        ->and($xml)->toContain('<cIndOp>100301</cIndOp>');
 
     // Assertions for DPS fields
     expect($xml)->toContain('Id="'.$dpsId.'"')

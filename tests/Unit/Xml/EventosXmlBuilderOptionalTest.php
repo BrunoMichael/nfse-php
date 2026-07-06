@@ -12,6 +12,11 @@ it('includes CPFAutor when cpfAutor is provided and omits CNPJAutor', function (
         'chNFSe' => '12345678901234567890123456789012345678901234567890',
         'CPFAutor' => '11122233344',
         'nPedRegEvento' => 7,
+        'e101101' => [
+            'xDesc' => 'Cancelamento de NFS-e',
+            'cMotivo' => '1',
+            'xMotivo' => 'Teste',
+        ],
     ]);
 
     $pedido = new PedRegEventoData(['infPedReg' => $inf]);
@@ -20,14 +25,13 @@ it('includes CPFAutor when cpfAutor is provided and omits CNPJAutor', function (
 
     expect($xml)->toContain('<CPFAutor>11122233344</CPFAutor>');
     expect($xml)->not()->toContain('<CNPJAutor>');
-    // nPedRegEvento não existe no schema XSD, não deve aparecer no XML
     expect($xml)->not()->toContain('nPedRegEvento');
     $ch = '12345678901234567890123456789012345678901234567890';
     $tipo = '101101';
     expect($xml)->toContain('Id="PRE'.$ch.$tipo.'"');
 });
 
-it('does not include e101101 when no cancellation provided', function () {
+it('throws when no event payload is provided', function () {
     $inf = new InfPedRegData([
         'tpAmb' => 2,
         'verAplic' => '1.0',
@@ -37,7 +41,6 @@ it('does not include e101101 when no cancellation provided', function () {
     ]);
 
     $pedido = new PedRegEventoData(['infPedReg' => $inf]);
-    $xml = (new EventosXmlBuilder)->buildPedRegEvento($pedido);
 
-    expect($xml)->not()->toContain('<e101101>');
-});
+    (new EventosXmlBuilder)->buildPedRegEvento($pedido);
+})->throws(InvalidArgumentException::class);

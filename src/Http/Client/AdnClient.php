@@ -2,13 +2,11 @@
 
 namespace Nfse\Http\Client;
 
-use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\RequestOptions;
 use Nfse\Dto\Http\AliquotaDto;
 use Nfse\Dto\Http\DistribuicaoDfeResponse;
 use Nfse\Dto\Http\DistribuicaoNsuDto;
-use Nfse\Dto\Http\MensagemProcessamentoDto;
 use Nfse\Dto\Http\ParametrosConfiguracaoConvenioDto;
 use Nfse\Dto\Http\ResultadoConsultaAliquotasResponse;
 use Nfse\Dto\Http\ResultadoConsultaConfiguracoesConvenioResponse;
@@ -18,64 +16,17 @@ use Nfse\Http\Contracts\AdnDanfseInterface;
 use Nfse\Http\Exceptions\NfseApiException;
 use Nfse\Http\NfseContext;
 
-class AdnClient implements AdnDanfseInterface
+class AdnClient extends AbstractMutualTlsClient implements AdnDanfseInterface
 {
     private const URL_PRODUCTION = 'https://adn.nfse.gov.br';
 
     private const URL_HOMOLOGATION = 'https://adn.producaorestrita.nfse.gov.br';
 
-    private Client $httpClient;
-
-    private ?string $tempCertFile = null;
-
-    public function __construct(private NfseContext $context)
+    protected function resolveBaseUrl(): string
     {
-        $this->httpClient = $this->createHttpClient();
-    }
-
-    public function __destruct()
-    {
-        if ($this->tempCertFile !== null && file_exists($this->tempCertFile)) {
-            unlink($this->tempCertFile);
-        }
-    }
-
-    private function resolveCertificatePath(): string
-    {
-        if ($this->context->certificatePath !== null) {
-            return $this->context->certificatePath;
-        }
-
-        $this->tempCertFile = tempnam(sys_get_temp_dir(), 'nfse_cert_');
-        file_put_contents($this->tempCertFile, $this->context->certificateContent);
-
-        return $this->tempCertFile;
-    }
-
-    private function createHttpClient(): Client
-    {
-        $baseUrl = $this->context->ambiente === TipoAmbiente::Producao
+        return $this->context->ambiente === TipoAmbiente::Producao
             ? self::URL_PRODUCTION
             : self::URL_HOMOLOGATION;
-
-        return new Client([
-            'base_uri' => $baseUrl,
-            'curl' => [
-                CURLOPT_SSLCERTTYPE => 'P12',
-                CURLOPT_SSLCERT => $this->resolveCertificatePath(),
-                CURLOPT_SSLCERTPASSWD => $this->context->certificatePassword,
-                CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
-                CURLOPT_CONNECTTIMEOUT => 30,
-                CURLOPT_TIMEOUT => 60,
-                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-                CURLOPT_SSL_VERIFYHOST => 0,
-                CURLOPT_SSL_VERIFYPEER => 0,
-            ],
-            RequestOptions::HEADERS => [
-                'Content-Type' => 'application/json',
-                'Accept' => 'application/json',
-            ],
-        ]);
     }
 
     private function get(string $endpoint): array
@@ -97,9 +48,6 @@ class AdnClient implements AdnDanfseInterface
         }
     }
 
-    /**
-     * ADN Contribuinte
-     */
     public function baixarDfeContribuinte(int $nsu, ?string $cnpjConsulta = null, bool $lote = true): DistribuicaoDfeResponse
     {
         $queryParams = [];
@@ -125,9 +73,6 @@ class AdnClient implements AdnDanfseInterface
         return $this->get("/contribuintes/NFSe/{$chaveAcesso}/Eventos");
     }
 
-    /**
-     * ADN Município
-     */
     public function baixarDfeMunicipio(int $nsu, ?TipoNsu $tipoNSU = null, bool $lote = true): DistribuicaoDfeResponse
     {
         $queryParams = [];
@@ -148,9 +93,6 @@ class AdnClient implements AdnDanfseInterface
         return $this->mapDistribuicaoResponse($response);
     }
 
-    /**
-     * ADN Recepção
-     */
     public function enviarLote(string $xmlZipB64): array
     {
         try {
@@ -168,9 +110,6 @@ class AdnClient implements AdnDanfseInterface
         }
     }
 
-    /**
-     * ADN Parâmetros Municipais
-     */
     public function consultarParametrosConvenio(string $codigoMunicipio): ResultadoConsultaConfiguracoesConvenioResponse
     {
         $response = $this->get("/parametrizacao/{$codigoMunicipio}/convenio");
@@ -221,9 +160,6 @@ class AdnClient implements AdnDanfseInterface
         return $this->get("/parametrizacao/{$codigoMunicipio}/{$competenciaEncoded}/retencoes");
     }
 
-    /**
-     * ADN DANFSe
-     */
     public function obterDanfse(string $chaveAcesso): string
     {
         try {
@@ -280,20 +216,10 @@ class AdnClient implements AdnDanfseInterface
         ]);
     }
 
-    private function mapMensagens(array $mensagens): array
-    {
-        return array_map(fn ($m) => new MensagemProcessamentoDto([
-            'mensagem' => $m['Mensagem'] ?? $m['mensagem'] ?? null,
-            'parametros' => $m['Parametros'] ?? $m['parametros'] ?? null,
-            'codigo' => $m['Codigo'] ?? $m['codigo'] ?? null,
-            'descricao' => $m['Descricao'] ?? $m['descricao'] ?? null,
-            'complemento' => $m['Complemento'] ?? $m['complemento'] ?? null,
-        ]), $mensagens);
-    }
-
     /**
      * @param  \GuzzleHttp\Exception\RequestException|\Exception  $e
      * @return mixed
+     *
      * @throws NfseApiException
      */
     private function handleException(\GuzzleHttp\Exception\RequestException|\Exception $e)

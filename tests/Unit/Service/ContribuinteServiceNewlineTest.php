@@ -22,7 +22,7 @@ it('removes newlines from signed xml before emission', function () {
     $adnClientMock = test()->createMock(AdnClient::class);
 
     // Create a partial mock or subclass to override createSigner
-    $service = new class($context) extends ContribuinteService
+    $service = new class($context, $sefinClientMock, $adnClientMock) extends ContribuinteService
     {
         public $signerMock;
 
@@ -31,14 +31,6 @@ it('removes newlines from signed xml before emission', function () {
             return $this->signerMock;
         }
     };
-
-    // Inject mocks into the service
-    $reflection = new ReflectionClass(ContribuinteService::class);
-    $sefinProperty = $reflection->getProperty('sefinClient');
-    $sefinProperty->setValue($service, $sefinClientMock);
-
-    $adnProperty = $reflection->getProperty('adnClient');
-    $adnProperty->setValue($service, $adnClientMock);
 
     // Setup the mock signer to return XML WITHOUT newlines (matching real XmlSigner behavior)
     $signedXmlWithoutNewlines = '<SignedXML><Content>Test</Content></SignedXML>';
@@ -61,6 +53,7 @@ it('removes newlines from signed xml before emission', function () {
             'dCompet' => '2023-10-27',
             'tpEmit' => 1,
             'cLocEmi' => '3550308',
+            'prest' => ['CNPJ' => '12345678000199'],
         ],
     ]);
 

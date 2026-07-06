@@ -69,6 +69,10 @@ class NfseXmlBuilder
             $this->buildValores($parent, $data->valores);
         }
 
+        if ($data->ibscbs) {
+            (new IbscbsXmlBuilder($this->dom))->buildNfseIbscbs($parent, $data->ibscbs);
+        }
+
         if ($data->dps) {
             // The DpsXmlBuilder creates a full XML, we need to import the 'DPS' element
             $dpsXml = $this->dpsBuilder->build($data->dps);

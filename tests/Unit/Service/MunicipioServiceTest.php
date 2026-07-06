@@ -8,7 +8,6 @@ use Nfse\Http\Client\CncClient;
 use Nfse\Http\NfseContext;
 use Nfse\Service\MunicipioService;
 use PHPUnit\Framework\TestCase;
-use ReflectionClass;
 
 class MunicipioServiceTest extends TestCase
 {
@@ -33,15 +32,11 @@ class MunicipioServiceTest extends TestCase
         $this->adnClientMock = $this->createMock(AdnClient::class);
         $this->cncClientMock = $this->createMock(CncClient::class);
 
-        $this->service = new MunicipioService($this->context);
-
-        $reflection = new ReflectionClass($this->service);
-
-        $adnProperty = $reflection->getProperty('adnClient');
-        $adnProperty->setValue($this->service, $this->adnClientMock);
-
-        $cncProperty = $reflection->getProperty('cncClient');
-        $cncProperty->setValue($this->service, $this->cncClientMock);
+        $this->service = new MunicipioService(
+            $this->context,
+            $this->adnClientMock,
+            $this->cncClientMock
+        );
     }
 
     public function test_baixar_dfe_municipio()

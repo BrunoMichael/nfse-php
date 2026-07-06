@@ -95,9 +95,7 @@ class DpsXmlBuilder
         }
 
         if ($data->ibscbs) {
-            $ibscbs = $this->dom->createElement('IBSCBS');
-            $this->appendElement($ibscbs, 'indZFMALC', $data->ibscbs->indicadorZfmAlc);
-            $parent->appendChild($ibscbs);
+            (new IbscbsXmlBuilder($this->dom))->buildInfoIbscbs($parent, $data->ibscbs);
         }
     }
 

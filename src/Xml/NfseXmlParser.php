@@ -22,6 +22,9 @@ class NfseXmlParser
         // Remove escaped quotes if present (e.g. from JSON dumps)
         $xml = str_replace('\"', '"', $xml);
 
+        // Escapa & soltos comuns em exports reais (ex.: "MXM & JETTAX")
+        $xml = preg_replace('/&(?!amp;|lt;|gt;|quot;|apos;|#\d+;|#x[\da-fA-F]+;)/', '&amp;', $xml) ?? $xml;
+
         // 2. Parse XML
         $useInternal = libxml_use_internal_errors(true);
 

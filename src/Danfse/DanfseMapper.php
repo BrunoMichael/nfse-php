@@ -1,0 +1,401 @@
+<?php
+
+namespace Nfse\Danfse;
+
+use Nfse\Contract\QrCodeGeneratorInterface;
+use Nfse\Danfse\Support\CompositeQrCodeGenerator;
+use Nfse\Dto\Nfse\InfDpsData;
+use Nfse\Dto\Nfse\NfseData;
+use Nfse\Dto\Nfse\TomadorData;
+use Nfse\Dto\Nfse\TributacaoData;
+use Nfse\Enums\CodigoStatus;
+use Nfse\Enums\EmitenteDPS;
+use Nfse\Enums\OpcaoSimplesNacional;
+use Nfse\Enums\RegimeApuracaoSN;
+use Nfse\Enums\RegimeEspecialTributacao;
+use Nfse\Enums\TipoAmbiente;
+use Nfse\Enums\TributacaoIssqn;
+use Nfse\Enums\TipoRetencaoIssqn;
+use InvalidArgumentException;
+
+final class DanfseMapper
+{
+    public function __construct(
+        private ?QrCodeGeneratorInterface $qrCodeGenerator = null,
+    ) {
+        $this->qrCodeGenerator ??= new CompositeQrCodeGenerator;
+    }
+
+    public function map(NfseData $nfse, ?DanfseWatermark $watermark = null): DanfseViewModel
+    {
+        $inf = $nfse->infNfse;
+        if ($inf === null) {
+            throw new InvalidArgumentException('NfseData sem infNfse não pode gerar DANFSe.');
+        }
+
+        $infDps = $inf->dps?->infDps;
+        $view = new DanfseViewModel;
+
+        $chave = DanfseFormatter::chaveFromId($inf->id);
+        $view->chaveAcesso = DanfseFormatter::dash($chave);
+        $view->urlConsulta = 'https://www.nfse.gov.br/ConsultaPublica/?tpc=1&chave='.$chave;
+        $view->qrCodeDataUri = $this->qrCodeGenerator->generateDataUri($view->urlConsulta);
+
+        $view->exibirAvisoHomologacao = $infDps?->tipoAmbiente === TipoAmbiente::Homologacao;
+        $view->marcaDagua = $watermark ?? $this->detectWatermark($inf->codigoStatus);
+
+        $view->municipioEmissor = DanfseFormatter::dash($inf->localEmissao);
+        $view->ambienteGerador = $inf->ambienteGerador?->label() ?? '-';
+        $view->tipoAmbiente = $infDps?->tipoAmbiente?->label() ?? '-';
+
+        $view->numeroNfse = DanfseFormatter::dash($inf->numeroNfse);
+        $view->competencia = DanfseFormatter::date($infDps?->dataCompetencia);
+        $view->dataHoraEmissaoNfse = DanfseFormatter::dateTime($inf->dataProcessamento);
+        $view->numeroDps = DanfseFormatter::dash($infDps?->numeroDps);
+        $view->serieDps = DanfseFormatter::dash($infDps?->serie);
+        $view->dataHoraEmissaoDps = DanfseFormatter::dateTime($infDps?->dataEmissao);
+        $view->emitenteNfse = $infDps?->tipoEmitente instanceof EmitenteDPS
+            ? $infDps->tipoEmitente->label()
+            : '-';
+        $view->situacaoNfse = DanfseFormatter::truncate($inf->codigoStatus?->label() ?? '-', 40);
+        $view->finalidade = '-';
+
+        $this->mapPrestador($view, $infDps, $inf->emitente);
+        $this->mapTomador($view, $infDps?->tomador);
+        $this->mapIntermediario($view, $infDps?->intermediario);
+        $this->mapServico($view, $inf, $infDps);
+        $this->mapIssqn($view, $inf, $infDps);
+        $this->mapTotais($view, $inf, $infDps);
+        $this->mapIbsCbs($view, $inf, $infDps);
+        $this->mapInformacoesComplementares($view, $inf, $infDps);
+
+        return $view;
+    }
+
+    private function detectWatermark(?CodigoStatus $status): ?DanfseWatermark
+    {
+        return match ($status) {
+            CodigoStatus::NfseSubstituicaoGerada => DanfseWatermark::Substituída,
+            default => null,
+        };
+    }
+
+    private function mapPrestador(DanfseViewModel $view, ?InfDpsData $infDps, $emitente): void
+    {
+        $prestador = $infDps?->prestador;
+
+        if ($prestador !== null) {
+            $this->fillParticipante(
+                $prestador->cpf,
+                $prestador->cnpj,
+                $prestador->nif,
+                $prestador->inscricaoMunicipal,
+                $prestador->telefone,
+                $prestador->nome,
+                $prestador->endereco,
+                $prestador->email,
+                $view->prestadorDocumento,
+                $view->prestadorInscricaoMunicipal,
+                $view->prestadorTelefone,
+                $view->prestadorNome,
+                $view->prestadorMunicipioUf,
+                $view->prestadorCodigoIbgeCep,
+                $view->prestadorEndereco,
+                $view->prestadorEmail,
+            );
+
+            $regime = $prestador->regimeTributario;
+            if ($regime) {
+                $view->prestadorSimplesNacional = $regime->opcaoSimplesNacional instanceof OpcaoSimplesNacional
+                    ? DanfseFormatter::truncate($regime->opcaoSimplesNacional->label(), 40)
+                    : '-';
+                $view->prestadorRegimeApuracaoSn = $regime->regimeApuracaoTributosSn instanceof RegimeApuracaoSN
+                    ? DanfseFormatter::truncate($regime->regimeApuracaoTributosSn->label(), 80)
+                    : '-';
+            }
+        }
+
+        if ($emitente !== null) {
+            if ($view->prestadorNome === '-' || $view->prestadorNome === '') {
+                $view->prestadorNome = DanfseFormatter::truncate($emitente->nome, 80);
+            }
+
+            if ($view->prestadorDocumento === '-') {
+                $view->prestadorDocumento = DanfseFormatter::documento($emitente->cpf, $emitente->cnpj);
+            }
+
+            if ($view->prestadorInscricaoMunicipal === '-') {
+                $view->prestadorInscricaoMunicipal = DanfseFormatter::dash($emitente->inscricaoMunicipal);
+            }
+
+            if ($view->prestadorTelefone === '-') {
+                $view->prestadorTelefone = DanfseFormatter::dash($emitente->telefone);
+            }
+
+            if ($view->prestadorEmail === '-') {
+                $view->prestadorEmail = DanfseFormatter::dash($emitente->email);
+            }
+
+            if ($view->prestadorEndereco === '-') {
+                $view->prestadorEndereco = DanfseFormatter::enderecoEmitente($emitente->endereco);
+            }
+
+            if ($emitente->endereco && ($view->prestadorMunicipioUf === '-' || $view->prestadorCodigoIbgeCep === '-')) {
+                $view->prestadorMunicipioUf = DanfseFormatter::dash($emitente->endereco->codigoMunicipio).' / '.DanfseFormatter::dash($emitente->endereco->uf);
+                $view->prestadorCodigoIbgeCep = DanfseFormatter::dash($emitente->endereco->codigoMunicipio).' / '.DanfseFormatter::formatCep($emitente->endereco->cep);
+            }
+        }
+    }
+
+    private function mapTomador(DanfseViewModel $view, ?TomadorData $tomador): void
+    {
+        if ($tomador === null || (! $tomador->cpf && ! $tomador->cnpj && ! $tomador->nif && ! $tomador->nome)) {
+            $view->tomadorIdentificado = false;
+
+            return;
+        }
+
+        $view->tomadorIdentificado = true;
+        $this->fillParticipante(
+            $tomador->cpf,
+            $tomador->cnpj,
+            $tomador->nif,
+            $tomador->inscricaoMunicipal,
+            $tomador->telefone,
+            $tomador->nome,
+            $tomador->endereco,
+            $tomador->email,
+            $view->tomadorDocumento,
+            $view->tomadorInscricaoMunicipal,
+            $view->tomadorTelefone,
+            $view->tomadorNome,
+            $view->tomadorMunicipioUf,
+            $view->tomadorCodigoIbgeCep,
+            $view->tomadorEndereco,
+            $view->tomadorEmail,
+        );
+    }
+
+    private function mapIntermediario(DanfseViewModel $view, $intermediario): void
+    {
+        if ($intermediario === null || (! $intermediario->cpf && ! $intermediario->cnpj && ! $intermediario->nif && ! $intermediario->nome)) {
+            $view->intermediarioIdentificado = false;
+
+            return;
+        }
+
+        $view->intermediarioIdentificado = true;
+        $this->fillParticipante(
+            $intermediario->cpf,
+            $intermediario->cnpj,
+            $intermediario->nif,
+            $intermediario->inscricaoMunicipal,
+            $intermediario->telefone,
+            $intermediario->nome,
+            $intermediario->endereco,
+            $intermediario->email,
+            $view->intermediarioDocumento,
+            $view->intermediarioInscricaoMunicipal,
+            $view->intermediarioTelefone,
+            $view->intermediarioNome,
+            $view->intermediarioMunicipioUf,
+            $view->intermediarioCodigoIbgeCep,
+            $view->intermediarioEndereco,
+            $view->intermediarioEmail,
+        );
+    }
+
+    private function fillParticipante(
+        ?string $cpf,
+        ?string $cnpj,
+        ?string $nif,
+        ?string $im,
+        ?string $telefone,
+        ?string $nome,
+        $endereco,
+        ?string $email,
+        string &$documento,
+        string &$inscricao,
+        string &$fone,
+        string &$nomeOut,
+        string &$municipioUf,
+        string &$codigoCep,
+        string &$enderecoOut,
+        string &$emailOut,
+    ): void {
+        $documento = DanfseFormatter::documento($cpf, $cnpj, $nif);
+        $inscricao = DanfseFormatter::dash($im);
+        $fone = DanfseFormatter::dash($telefone);
+        $nomeOut = DanfseFormatter::truncate($nome, 80);
+        $emailOut = DanfseFormatter::dash($email);
+        $enderecoOut = DanfseFormatter::enderecoNacional($endereco);
+
+        if ($endereco) {
+            $municipio = $endereco->codigoMunicipio;
+            $cep = $endereco->cep;
+            $uf = property_exists($endereco, 'uf') ? ($endereco->uf ?? '-') : '-';
+            $municipioUf = DanfseFormatter::dash($municipio).' / '.DanfseFormatter::dash($uf);
+            $codigoCep = DanfseFormatter::dash($municipio).' / '.DanfseFormatter::formatCep($cep);
+        }
+    }
+
+    private function mapServico(DanfseViewModel $view, $inf, ?InfDpsData $infDps): void
+    {
+        $servico = $infDps?->servico;
+        $codigoServico = $servico?->codigoServico;
+
+        $codTribNac = $codigoServico?->codigoTributacaoNacional;
+        $codTribMun = $codigoServico?->codigoTributacaoMunicipal;
+        $view->codigoTributacao = trim(DanfseFormatter::dash($codTribNac).' / '.DanfseFormatter::dash($codTribMun), ' /');
+        if ($view->codigoTributacao === '- / -') {
+            $view->codigoTributacao = '-';
+        }
+
+        $view->codigoNbs = DanfseFormatter::dash($codigoServico?->codigoNbs);
+        $local = $inf->localPrestacao ?? $infDps?->servico?->localPrestacao?->codigoLocalPrestacao;
+        $view->localPrestacao = DanfseFormatter::dash($local).' / - / BR';
+
+        $descMun = $inf->descricaoTributacaoMunicipal;
+        $descNac = $inf->descricaoTributacaoNacional;
+        $view->descricaoTributacao = DanfseFormatter::truncate($descMun ?: $descNac, 170);
+        $view->descricaoServico = DanfseFormatter::truncate($codigoServico?->descricaoServico, 1300);
+    }
+
+    private function mapIssqn(DanfseViewModel $view, $inf, ?InfDpsData $infDps): void
+    {
+        $tributacao = $infDps?->valores?->tributacao;
+        $tribIssqn = $tributacao?->tributacaoIssqn;
+
+        if ($tribIssqn === TributacaoIssqn::NaoIncidencia || $tribIssqn === TributacaoIssqn::ExportacaoServico) {
+            $view->exibirTributacaoIssqn = false;
+
+            return;
+        }
+
+        $view->tipoTributacaoIssqn = $tribIssqn instanceof TributacaoIssqn
+            ? $tribIssqn->label()
+            : '-';
+        $view->municipioIncidenciaIssqn = DanfseFormatter::dash($inf->nomeLocalIncidencia).' / - / BR';
+        $view->regimeEspecialIssqn = $infDps?->prestador?->regimeTributario?->regimeEspecialTributacao instanceof RegimeEspecialTributacao
+            ? DanfseFormatter::truncate($infDps->prestador->regimeTributario->regimeEspecialTributacao->label(), 27)
+            : '-';
+        $view->retencaoIssqn = $tributacao?->tipoRetencaoIssqn instanceof TipoRetencaoIssqn
+            ? $tributacao->tipoRetencaoIssqn->label()
+            : '-';
+
+        $view->baseCalculoIssqn = DanfseFormatter::money($inf->valores?->baseCalculo);
+        $view->aliquotaIssqn = DanfseFormatter::percent($inf->valores?->aliquotaAplicada);
+        $view->valorIssqn = DanfseFormatter::money($inf->valores?->valorIssqn);
+
+        $this->mapRetencoesFederais($view, $tributacao);
+    }
+
+    private function mapRetencoesFederais(DanfseViewModel $view, ?TributacaoData $tributacao): void
+    {
+        if ($tributacao === null) {
+            return;
+        }
+
+        $view->irrf = DanfseFormatter::money($tributacao->valorRetidoIrrf);
+        $view->contribuicoesSociaisRetidas = DanfseFormatter::money($tributacao->valorRetidoCsll);
+        $view->pisProprio = DanfseFormatter::money($tributacao->valorPis);
+        $view->cofinsProprio = DanfseFormatter::money($tributacao->valorCofins);
+    }
+
+    private function mapTotais(DanfseViewModel $view, $inf, ?InfDpsData $infDps): void
+    {
+        $valoresDps = $infDps?->valores;
+
+        $view->valorOperacao = DanfseFormatter::money($valoresDps?->valorServicoPrestado?->valorServico);
+        $view->descontoIncondicionado = DanfseFormatter::money($valoresDps?->desconto?->valorDescontoIncondicionado);
+        $view->descontoCondicionado = DanfseFormatter::money($valoresDps?->desconto?->valorDescontoCondicionado);
+        $view->totalRetencoes = DanfseFormatter::money($inf->valores?->valorTotalRetido);
+        $view->valorLiquidoNfse = DanfseFormatter::money($inf->valores?->valorLiquido);
+    }
+
+    private function mapIbsCbs(DanfseViewModel $view, $inf, ?InfDpsData $infDps): void
+    {
+        $info = $infDps?->ibscbs;
+        $computed = $inf->ibscbs;
+
+        if ($info?->finalidade) {
+            $view->finalidade = DanfseFormatter::truncate($info->finalidade->label(), 40);
+        }
+
+        $situacao = $info?->valores?->tributacao?->situacaoClassificacao;
+        if ($situacao) {
+            $view->cstClassTrib = DanfseFormatter::dash($situacao->codigoSituacaoTributaria)
+                .' / '.DanfseFormatter::dash($situacao->codigoClassificacaoTributaria);
+            if ($view->cstClassTrib === '- / -') {
+                $view->cstClassTrib = '-';
+            }
+        }
+
+        if ($info?->codigoIndicadorOperacao) {
+            $view->indicadorOperacaoIbs = DanfseFormatter::dash($info->codigoIndicadorOperacao);
+        }
+
+        if ($computed === null) {
+            return;
+        }
+
+        $view->exibirTributacaoIbsCbs = true;
+        $valores = $computed->valores;
+        $totais = $computed->totalizadores;
+
+        $view->baseCalculoIbsCbs = DanfseFormatter::money($valores?->baseCalculo);
+        $view->reducaoAliquotaIbsCbs = DanfseFormatter::percent($computed->percentualRedutor);
+
+        $view->aliquotaIbs = DanfseFormatter::percent(
+            ($valores?->uf?->aliquotaIbsUf ?? 0) + ($valores?->municipio?->aliquotaIbsMunicipal ?? 0)
+        );
+        $view->aliquotaEfetivaIbsEstadual = DanfseFormatter::percent($valores?->uf?->aliquotaEfetivaUf);
+        $view->aliquotaEfetivaIbsMunicipal = DanfseFormatter::percent($valores?->municipio?->aliquotaEfetivaMunicipal);
+        $view->valorIbsEstadual = DanfseFormatter::money($totais?->totalIbs?->totalUf?->valorIbsUf);
+        $view->valorIbsMunicipal = DanfseFormatter::money($totais?->totalIbs?->totalMunicipal?->valorIbsMunicipal);
+        $view->valorTotalIbs = DanfseFormatter::money($totais?->totalIbs?->valorTotalIbs);
+
+        $view->aliquotaCbs = DanfseFormatter::percent($valores?->federal?->aliquotaCbs);
+        $view->aliquotaEfetivaCbs = DanfseFormatter::percent($valores?->federal?->aliquotaEfetivaCbs);
+        $view->valorTotalCbs = DanfseFormatter::money($totais?->totalCbs?->valorCbs);
+
+        $totalIbs = $totais?->totalIbs?->valorTotalIbs ?? 0;
+        $totalCbs = $totais?->totalCbs?->valorCbs ?? 0;
+        $view->totalIbsCbs = DanfseFormatter::money($totalIbs + $totalCbs);
+        $view->valorLiquidoComIbsCbs = DanfseFormatter::money($totais?->valorTotalNf);
+    }
+
+    private function mapInformacoesComplementares(DanfseViewModel $view, $inf, ?InfDpsData $infDps): void
+    {
+        $partes = [];
+
+        $infoCompl = $infDps?->servico?->informacaoComplemento?->informacoesComplementares;
+        if ($infoCompl) {
+            $partes[] = 'Inf. Cont.: '.$infoCompl;
+        }
+
+        if ($inf->outrasInformacoes) {
+            $partes[] = $inf->outrasInformacoes;
+        }
+
+        $tributacao = $infDps?->valores?->tributacao;
+        if ($tributacao) {
+            $totais = [];
+            if ($tributacao->valorTotalTributosFederais !== null) {
+                $totais[] = 'Federais: R$ '.DanfseFormatter::money($tributacao->valorTotalTributosFederais);
+            }
+            if ($tributacao->valorTotalTributosEstaduais !== null) {
+                $totais[] = 'Estaduais: R$ '.DanfseFormatter::money($tributacao->valorTotalTributosEstaduais);
+            }
+            if ($tributacao->valorTotalTributosMunicipais !== null) {
+                $totais[] = 'Municipais: R$ '.DanfseFormatter::money($tributacao->valorTotalTributosMunicipais);
+            }
+
+            if ($totais !== []) {
+                $partes[] = 'Totais Aproximados dos Tributos cfe. Lei nº 12.741/2012: '.implode('; ', $totais);
+            }
+        }
+
+        $view->informacoesComplementares = DanfseFormatter::truncate(implode(' | ', $partes), 2000);
+    }
+}

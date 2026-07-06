@@ -12,7 +12,6 @@ use Nfse\Http\NfseContext;
 use Nfse\Service\ContribuinteService;
 use Nfse\Support\IdGenerator;
 use PHPUnit\Framework\TestCase;
-use ReflectionClass;
 
 class ContribuinteServiceTest extends TestCase
 {
@@ -37,15 +36,27 @@ class ContribuinteServiceTest extends TestCase
         $this->sefinClientMock = $this->createMock(SefinNacionalInterface::class);
         $this->adnClientMock = $this->createMock(AdnClient::class);
 
-        $this->service = new ContribuinteService($this->context);
+        $this->service = new ContribuinteService(
+            $this->context,
+            $this->sefinClientMock,
+            $this->adnClientMock
+        );
+    }
 
-        $reflection = new ReflectionClass($this->service);
-
-        $sefinProperty = $reflection->getProperty('sefinClient');
-        $sefinProperty->setValue($this->service, $this->sefinClientMock);
-
-        $adnProperty = $reflection->getProperty('adnClient');
-        $adnProperty->setValue($this->service, $this->adnClientMock);
+    private function minimalInfDps(string $idDps): array
+    {
+        return [
+            '@attributes' => ['Id' => $idDps],
+            'tpAmb' => 2,
+            'dhEmi' => '2023-10-27T10:00:00',
+            'verAplic' => '1.0',
+            'serie' => '1',
+            'nDPS' => '1',
+            'dCompet' => '2023-10-27',
+            'tpEmit' => 1,
+            'cLocEmi' => '3550308',
+            'prest' => ['CNPJ' => '12345678000199'],
+        ];
     }
 
     public function test_emitir_nfse_success()
@@ -53,17 +64,7 @@ class ContribuinteServiceTest extends TestCase
         $idDps = IdGenerator::generateDpsId('12345678000199', '3550308', '1', '1');
         $dpsData = new DpsData([
             '@attributes' => ['versao' => '1.00'],
-            'infDPS' => [
-                '@attributes' => ['Id' => $idDps],
-                'tpAmb' => 2,
-                'dhEmi' => '2023-10-27T10:00:00',
-                'verAplic' => '1.0',
-                'serie' => '1',
-                'nDPS' => '1',
-                'dCompet' => '2023-10-27',
-                'tpEmit' => 1,
-                'cLocEmi' => '3550308',
-            ],
+            'infDPS' => $this->minimalInfDps($idDps),
         ]);
 
         $xmlContent = '<?xml version="1.0" encoding="UTF-8"?>
@@ -375,17 +376,7 @@ class ContribuinteServiceTest extends TestCase
         $idDps = IdGenerator::generateDpsId('12345678000199', '3550308', '1', '1');
         $dpsData = new DpsData([
             '@attributes' => ['versao' => '1.00'],
-            'infDPS' => [
-                '@attributes' => ['Id' => $idDps],
-                'tpAmb' => 2,
-                'dhEmi' => '2023-10-27T10:00:00',
-                'verAplic' => '1.0',
-                'serie' => '1',
-                'nDPS' => '1',
-                'dCompet' => '2023-10-27',
-                'tpEmit' => 1,
-                'cLocEmi' => '3550308',
-            ],
+            'infDPS' => $this->minimalInfDps($idDps),
         ]);
 
         $responseDto = new EmissaoNfseResponse([
@@ -410,17 +401,7 @@ class ContribuinteServiceTest extends TestCase
         $idDps = IdGenerator::generateDpsId('12345678000199', '3550308', '1', '1');
         $dpsData = new DpsData([
             '@attributes' => ['versao' => '1.00'],
-            'infDPS' => [
-                '@attributes' => ['Id' => $idDps],
-                'tpAmb' => 2,
-                'dhEmi' => '2023-10-27T10:00:00',
-                'verAplic' => '1.0',
-                'serie' => '1',
-                'nDPS' => '1',
-                'dCompet' => '2023-10-27',
-                'tpEmit' => 1,
-                'cLocEmi' => '3550308',
-            ],
+            'infDPS' => $this->minimalInfDps($idDps),
         ]);
 
         $responseDto = new EmissaoNfseResponse([

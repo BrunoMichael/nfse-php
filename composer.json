@@ -34,6 +34,8 @@
         "spatie/ray": "^1.28"
     },
     "suggest": {
+        "chillerlan/php-qrcode": "Recomendado para gerar QR Code escaneável no DANFSe (NT-008).",
+        "dompdf/dompdf": "Opcional para gerar DANFSe em PDF a partir do HTML.",
         "spatie/typescript-transformer": "Opcional (PHP >=8.2) para regenerar o arquivo types/generated.d.ts."
     },
     "autoload": {

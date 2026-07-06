@@ -122,7 +122,7 @@ class InfDpsData extends Dto
      * Grupo de informações declaradas pelo emitente referentes ao IBS e à CBS.
      */
     #[MapFrom('IBSCBS')]
-    public ?IbscbsData $ibscbs = null;
+    public ?InfoIbscbsData $ibscbs = null;
 
     /**
      * Valores do serviço e tributos.
