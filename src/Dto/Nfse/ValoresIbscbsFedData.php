@@ -3,7 +3,7 @@
 namespace Nfse\Dto\Nfse;
 
 use Nfse\Dto\Dto;
-use Spatie\DataTransferObject\Attributes\MapFrom;
+use Nfse\Support\DTO\Attributes\MapFrom;
 
 class ValoresIbscbsFedData extends Dto
 {

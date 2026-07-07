@@ -11,8 +11,8 @@ use Nfse\Enums\TipoRetencaoPisCofins;
 use Nfse\Enums\TipoSuspensao;
 use Nfse\Enums\TributacaoIssqn;
 use Nfse\Support\DTO\EnumCaster;
-use Spatie\DataTransferObject\Attributes\CastWith;
-use Spatie\DataTransferObject\Attributes\MapFrom;
+use Nfse\Support\DTO\Attributes\CastWith;
+use Nfse\Support\DTO\Attributes\MapFrom;
 
 class TributacaoData extends Dto
 {

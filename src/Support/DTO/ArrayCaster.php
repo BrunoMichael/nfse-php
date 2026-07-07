@@ -2,8 +2,6 @@
 
 namespace Nfse\Support\DTO;
 
-use Spatie\DataTransferObject\Caster;
-
 class ArrayCaster implements Caster
 {
     /** @phpstan-ignore constructor.unusedParameter */

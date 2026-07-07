@@ -56,7 +56,7 @@ final class DanfseLayout
             self::cell('Regime De Apuração Tributária Pelo SN', $issuer['tax_regim'], 10.51, 6.28, 10.19, 0.63),
 
             ...self::personBlock('Tomador / Adquirente', $taker, 6.92, true),
-            ...self::recipientBlock($recipient),
+            ...self::recipientBlock($recipient, (bool) ($data['recipient_is_taker'] ?? false)),
             ...self::personBlock('Intermediário Da Operação', $intermed, 10.80, true),
 
             self::sectionCell('Serviço Prestado', 0.30, 12.74),
@@ -66,21 +66,7 @@ final class DanfseLayout
             self::cell('', $service['tax_code_description'], 0.30, 13.39, 20.40, 0.38, 'no-label'),
             self::cell('Descrição Do Serviço', $service['description'], 0.30, 13.79, 20.40, 0.63),
 
-            self::sectionCell('Tributação Municipal (ISSQN)', 0.30, 14.43),
-            self::cell('Tipo De Tributação Do ISSQN', $municipal['issqn_tax'], 0.30, 14.43, 5.09, 0.63),
-            self::cell('Município / Sigla UF / País Da Incidência Do ISSQN', $municipal['city'], 5.41, 14.43, 10.19, 0.63),
-            self::cell('Regime Especial De Tributação Do ISSQN', $municipal['special_tax_regim'], 0.30, 15.08, 5.09, 0.63),
-            self::cell('Tipo De Imunidade Do ISSQN', $municipal['immunity_type'], 5.41, 15.08, 5.09, 0.63),
-            self::cell('Suspensão Da Exigibilidade Do ISSQN', $municipal['suspension_issqn'], 10.51, 15.08, 5.09, 0.63),
-            self::cell('Número Processo Suspensão', $municipal['suspension_number'], 15.62, 15.08, 5.09, 0.63),
-            self::cell('Benefício Municipal', $municipal['municipal_benefit'], 0.30, 15.73, 5.09, 0.63),
-            self::cell('Cálculo Do BM', $municipal['municipal_benefit_math'], 5.41, 15.73, 5.09, 0.63),
-            self::cell('Total Deduções/Reduções', $municipal['deduct_reduc_amount'], 10.51, 15.73, 5.09, 0.63),
-            self::cell('Desconto Incondicionado', $municipal['discount_unconditioned'], 15.62, 15.73, 5.09, 0.63),
-            self::cell('BC ISSQN', $municipal['calculation_basis'], 0.30, 16.37, 5.09, 0.63),
-            self::cell('Alíquota Aplicada', $municipal['aliq_applied'], 5.41, 16.37, 5.09, 0.63),
-            self::cell('Retenção Do ISSQN', $municipal['issqn_retention'], 10.51, 16.37, 5.09, 0.63),
-            self::cell('ISSQN Apurado', $municipal['issqn_cleared'], 15.62, 16.37, 5.09, 0.63),
+            ...self::municipalTaxBlock($municipal, (bool) ($data['issqn_not_subject'] ?? false)),
         ];
 
         if ($federal['printed'] ?? true) {
@@ -136,8 +122,9 @@ final class DanfseLayout
             'cells' => $cells,
             'messages' => [
                 ...self::notIdentifiedMessage($taker, 'TOMADOR/ADQUIRENTE DA OPERAÇÃO NÃO IDENTIFICADO NA NFS-e', 6.92),
-                ...self::notIdentifiedMessage($recipient, 'DESTINATÁRIO DA OPERAÇÃO NÃO IDENTIFICADO NA NFS-e', 8.86),
+                ...self::recipientMessage($recipient, (bool) ($data['recipient_is_taker'] ?? false)),
                 ...self::notIdentifiedMessage($intermed, 'INTERMEDIÁRIO DA OPERAÇÃO NÃO IDENTIFICADO NA NFS-e', 10.80),
+                ...self::issqnNotSubjectMessage((bool) ($data['issqn_not_subject'] ?? false)),
             ],
         ];
     }
@@ -175,14 +162,83 @@ final class DanfseLayout
     }
 
     /**
+     * @param  array<string, string>  $municipal
+     * @return array<int, array<string, mixed>>
+     */
+    private static function municipalTaxBlock(array $municipal, bool $issqnNotSubject): array
+    {
+        if ($issqnNotSubject) {
+            return [];
+        }
+
+        return [
+            self::sectionCell('Tributação Municipal (ISSQN)', 0.30, 14.43),
+            self::cell('Tipo De Tributação Do ISSQN', $municipal['issqn_tax'], 0.30, 14.43, 5.09, 0.63),
+            self::cell('Município / Sigla UF / País Da Incidência Do ISSQN', $municipal['city'], 5.41, 14.43, 10.19, 0.63),
+            self::cell('Regime Especial De Tributação Do ISSQN', $municipal['special_tax_regim'], 0.30, 15.08, 5.09, 0.63),
+            self::cell('Tipo De Imunidade Do ISSQN', $municipal['immunity_type'], 5.41, 15.08, 5.09, 0.63),
+            self::cell('Suspensão Da Exigibilidade Do ISSQN', $municipal['suspension_issqn'], 10.51, 15.08, 5.09, 0.63),
+            self::cell('Número Processo Suspensão', $municipal['suspension_number'], 15.62, 15.08, 5.09, 0.63),
+            self::cell('Benefício Municipal', $municipal['municipal_benefit'], 0.30, 15.73, 5.09, 0.63),
+            self::cell('Cálculo Do BM', $municipal['municipal_benefit_math'], 5.41, 15.73, 5.09, 0.63),
+            self::cell('Total Deduções/Reduções', $municipal['deduct_reduc_amount'], 10.51, 15.73, 5.09, 0.63),
+            self::cell('Desconto Incondicionado', $municipal['discount_unconditioned'], 15.62, 15.73, 5.09, 0.63),
+            self::cell('BC ISSQN', $municipal['calculation_basis'], 0.30, 16.37, 5.09, 0.63),
+            self::cell('Alíquota Aplicada', $municipal['aliq_applied'], 5.41, 16.37, 5.09, 0.63),
+            self::cell('Retenção Do ISSQN', $municipal['issqn_retention'], 10.51, 16.37, 5.09, 0.63),
+            self::cell('ISSQN Apurado', $municipal['issqn_cleared'], 15.62, 16.37, 5.09, 0.63),
+        ];
+    }
+
+    /**
      * @param  array<string, string>  $recipient
      * @return array<int, array<string, mixed>>
      */
-    private static function recipientBlock(array $recipient): array
+    private static function recipientBlock(array $recipient, bool $recipientIsTaker): array
     {
+        if ($recipientIsTaker || self::isEmptyPerson($recipient)) {
+            return [];
+        }
+
         return self::personBlock('Destinatário Da Operação', $recipient, 8.86, false);
     }
 
+    /**
+     * @param  array<string, string>  $recipient
+     * @return array<int, array<string, mixed>>
+     */
+    private static function recipientMessage(array $recipient, bool $recipientIsTaker): array
+    {
+        if ($recipientIsTaker) {
+            return [[
+                'text' => 'O DESTINATÁRIO É O PRÓPRIO TOMADOR/ADQUIRENTE DA OPERAÇÃO',
+                'x' => 0.30,
+                'y' => 8.86,
+                'w' => 20.40,
+                'h' => 0.32,
+            ]];
+        }
+
+        return self::notIdentifiedMessage($recipient, 'DESTINATÁRIO DA OPERAÇÃO NÃO IDENTIFICADO NA NFS-e', 8.86);
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private static function issqnNotSubjectMessage(bool $issqnNotSubject): array
+    {
+        if (! $issqnNotSubject) {
+            return [];
+        }
+
+        return [[
+            'text' => 'TRIBUTAÇÃO MUNICIPAL (ISSQN) - OPERAÇÃO NÃO SUJEITA AO ISSQN',
+            'x' => 0.30,
+            'y' => 14.43,
+            'w' => 20.40,
+            'h' => 0.32,
+        ]];
+    }
     /**
      * @param  array<string, string>  $person
      * @return array<int, array<string, mixed>>

@@ -27,7 +27,7 @@ it('can instantiate InfDpsData with valid data', function () {
 });
 
 it('can instantiate InfDpsData with partial data', function () {
-    // spatie/data-transfer-object allows null values for nullable properties
+    // nullable DTO properties accept null values for nullable properties
     $data = [
         '@attributes' => ['Id' => 'DPS456'],
         'tpAmb' => 2,

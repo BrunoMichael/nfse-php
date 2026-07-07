@@ -7,8 +7,8 @@ use Nfse\Enums\OpcaoSimplesNacional;
 use Nfse\Enums\RegimeApuracaoSN;
 use Nfse\Enums\RegimeEspecialTributacao;
 use Nfse\Support\DTO\EnumCaster;
-use Spatie\DataTransferObject\Attributes\CastWith;
-use Spatie\DataTransferObject\Attributes\MapFrom;
+use Nfse\Support\DTO\Attributes\CastWith;
+use Nfse\Support\DTO\Attributes\MapFrom;
 
 class RegimeTributarioData extends Dto
 {

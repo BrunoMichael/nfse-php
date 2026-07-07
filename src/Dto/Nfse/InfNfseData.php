@@ -7,8 +7,8 @@ use Nfse\Enums\AmbienteGerador;
 use Nfse\Enums\CodigoStatus;
 use Nfse\Enums\ProcessoEmissao;
 use Nfse\Support\DTO\EnumCaster;
-use Spatie\DataTransferObject\Attributes\CastWith;
-use Spatie\DataTransferObject\Attributes\MapFrom;
+use Nfse\Support\DTO\Attributes\CastWith;
+use Nfse\Support\DTO\Attributes\MapFrom;
 
 class InfNfseData extends Dto
 {

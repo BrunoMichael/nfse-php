@@ -3,7 +3,7 @@
 namespace Nfse\Dto\Nfse;
 
 use Nfse\Dto\Dto;
-use Spatie\DataTransferObject\Attributes\MapFrom;
+use Nfse\Support\DTO\Attributes\MapFrom;
 
 /**
  * DTO para evento e105102 - Cancelamento de NFS-e por Substituição

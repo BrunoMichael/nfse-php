@@ -2,8 +2,6 @@
 
 namespace Nfse\Support\DTO;
 
-use Spatie\DataTransferObject\Caster;
-
 class EnumCaster implements Caster
 {
     /** @phpstan-ignore constructor.unusedParameter */

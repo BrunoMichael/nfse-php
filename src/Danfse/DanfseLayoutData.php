@@ -80,7 +80,11 @@ final class DanfseLayoutData
         $issuerUf = self::text($xpath, $prest, 'UF') ?: self::text($xpath, $emit, 'UF');
         $issuerCityState = self::cityState($issuerCity, $issuerUf);
         $substitutedKey = self::text($xpath, $dps, 'chSubstda');
-        $substituted = $substituted || $substitutedKey !== '';
+        $cStat = self::text($xpath, $infNfse, 'cStat');
+        $substituted = $substituted || $substitutedKey !== '' || $cStat === '101';
+        $tribIssqnRaw = self::text($xpath, $dps, 'tribISSQN');
+        $issqnNotSubject = in_array($tribIssqnRaw, ['3', '4'], true);
+        $recipientIsTaker = self::recipientIsTaker($xpath, $dpsIbsCbs, $toma, $recipient);
         $competYear = (int) substr(self::text($xpath, $dps, 'dCompet'), 0, 4);
         $federalTaxBlockPrinted = $competYear === 0 || $competYear <= 2026;
         $totalIbsCbs = self::sumCurrencyValues(
@@ -110,6 +114,8 @@ final class DanfseLayoutData
             'nfse_status' => self::nfseStatus(self::text($xpath, $infNfse, 'cStat'), $cancelled, $substituted),
             'purpose' => self::purpose(self::text($xpath, $dps, 'finNFSe')),
             'watermark' => self::watermark($cancelled, $substituted),
+            'recipient_is_taker' => $recipientIsTaker,
+            'issqn_not_subject' => $issqnNotSubject,
             'issuer' => [
                 'id' => self::formatCpfCnpj(self::text($xpath, $prest, 'CNPJ') ?: self::text($xpath, $prest, 'CPF') ?: self::text($xpath, $emit, 'CNPJ') ?: self::text($xpath, $emit, 'CPF')),
                 'municipal_registration' => self::text($xpath, $prest, 'IM') ?: self::text($xpath, $emit, 'IM') ?: '-',
@@ -139,7 +145,7 @@ final class DanfseLayoutData
                 'description' => $description ?: '-',
             ],
             'municipal_taxes' => [
-                'issqn_tax' => self::issqnTax(self::text($xpath, $dps, 'tribISSQN')),
+                'issqn_tax' => self::issqnTax($tribIssqnRaw),
                 'country' => self::text($xpath, $dps, 'cPaisResult') ?: '-',
                 'city' => self::municipalIncidence($xpath, $infNfse, $dps, $issuerUf),
                 'special_tax_regim' => self::specialTaxRegime($regEspTrib),
@@ -214,11 +220,7 @@ final class DanfseLayoutData
                 'total_ibs_cbs' => $totalIbsCbs,
                 'net_value_with_ibs_cbs' => self::optionalCurrency(self::text($xpath, $ibsCbs, 'vTotNF')),
             ],
-            'taxes_amount' => [
-                'federal_tax' => self::optionalCurrency(self::text($xpath, $dps, 'vTotTribFed')),
-                'state_tax' => self::optionalCurrency(self::text($xpath, $dps, 'vTotTribEst')),
-                'municipal_tax' => self::optionalCurrency(self::text($xpath, $dps, 'vTotTribMun')),
-            ],
+            'taxes_amount' => self::approximateTaxTotals($xpath, $dps),
             'canhoto_nfse_key' => trim((self::text($xpath, $infNfse, 'nNFSe') ?: '-') . ' / ' . $key),
         ];
 
@@ -690,6 +692,60 @@ final class DanfseLayoutData
         if (self::firstElement($xpath, $dps, 'vDedRed')) {
             $data['municipal_taxes']['deduct_reduc_amount'] = self::currency(self::text($xpath, $dps, 'vDR'));
         }
+    }
+
+    private static function recipientIsTaker(DOMXPath $xpath, ?DOMElement $dpsIbsCbs, ?DOMElement $toma, ?DOMElement $recipient): bool
+    {
+        $indDest = self::text($xpath, $dpsIbsCbs, 'indDest');
+        if ($indDest === '0') {
+            return true;
+        }
+
+        if (! $toma || ! $recipient) {
+            return false;
+        }
+
+        $takerId = preg_replace('/\D/', '', self::text($xpath, $toma, 'CNPJ') ?: self::text($xpath, $toma, 'CPF')) ?? '';
+        $recipientId = preg_replace('/\D/', '', self::text($xpath, $recipient, 'CNPJ') ?: self::text($xpath, $recipient, 'CPF')) ?? '';
+
+        return $takerId !== '' && $takerId === $recipientId;
+    }
+
+    /**
+     * @return array{federal_tax: string, state_tax: string, municipal_tax: string}
+     */
+    private static function approximateTaxTotals(DOMXPath $xpath, DOMElement $dps): array
+    {
+        $totTrib = self::firstElement($xpath, $dps, 'totTrib');
+        $vTotTrib = self::firstElement($xpath, $totTrib, 'vTotTrib');
+
+        return [
+            'federal_tax' => self::taxTotalDisplay(
+                self::text($xpath, $vTotTrib, 'vTotTribFed'),
+                self::text($xpath, $totTrib, 'pTotTribFed'),
+            ),
+            'state_tax' => self::taxTotalDisplay(
+                self::text($xpath, $vTotTrib, 'vTotTribEst'),
+                self::text($xpath, $totTrib, 'pTotTribEst'),
+            ),
+            'municipal_tax' => self::taxTotalDisplay(
+                self::text($xpath, $vTotTrib, 'vTotTribMun'),
+                self::text($xpath, $totTrib, 'pTotTribMun') ?: self::text($xpath, $totTrib, 'pTotTribSN'),
+            ),
+        ];
+    }
+
+    private static function taxTotalDisplay(string $amount, string $percent): string
+    {
+        if ($amount !== '') {
+            return self::optionalCurrency($amount);
+        }
+
+        if ($percent !== '') {
+            return self::percentage($percent);
+        }
+
+        return '-';
     }
 
     private static function sanitizeXml(string $xml): string
