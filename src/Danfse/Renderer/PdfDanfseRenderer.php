@@ -3,7 +3,6 @@
 namespace Nfse\Danfse\Renderer;
 
 use Nfse\Contract\DanfseRendererInterface;
-use Nfse\Danfse\DanfseViewModel;
 
 final class PdfDanfseRenderer implements DanfseRendererInterface
 {
@@ -13,7 +12,10 @@ final class PdfDanfseRenderer implements DanfseRendererInterface
         $this->htmlRenderer ??= new HtmlDanfseRenderer;
     }
 
-    public function render(DanfseViewModel $viewModel): string
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    public function render(array $data, string $qrCodeDataUri): string
     {
         if (! class_exists(\Dompdf\Dompdf::class)) {
             throw new \RuntimeException(
@@ -21,7 +23,7 @@ final class PdfDanfseRenderer implements DanfseRendererInterface
             );
         }
 
-        $html = $this->htmlRenderer->render($viewModel);
+        $html = $this->htmlRenderer->render($data, $qrCodeDataUri);
 
         $dompdf = new \Dompdf\Dompdf([
             'isRemoteEnabled' => true,

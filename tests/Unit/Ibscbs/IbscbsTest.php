@@ -67,12 +67,13 @@ it('maps ibscbs fields to danfse view model', function () {
 
 it('renders ibscbs section in danfse html', function () {
     $xml = file_get_contents(__DIR__.'/../../fixtures/xml/ExemploPisZeradoCofinsSobreFaturamentoPreenchido.xml');
-    $nfse = (new NfseXmlParser)->parse($xml);
-    $view = (new \Nfse\Danfse\DanfseMapper)->map($nfse);
-    $html = (new \Nfse\Danfse\Renderer\HtmlDanfseRenderer)->render($view);
+    $data = \Nfse\Danfse\DanfseLayoutData::fromXml($xml);
+    $qrCodeDataUri = (new \Nfse\Danfse\Support\CompositeQrCodeGenerator)
+        ->generateDataUri((string) $data['qr_code_url'], 150);
+    $html = (new \Nfse\Danfse\Renderer\HtmlDanfseRenderer)->render($data, $qrCodeDataUri);
 
     expect($html)
-        ->toContain('TRIBUTAÇÃO IBS/CBS')
+        ->toContain('Tributação IBS / CBS')
         ->toContain('000 / 000001')
-        ->toContain('R$ 8.740,00');
+        ->toContain('R$ 8.740,0000');
 });

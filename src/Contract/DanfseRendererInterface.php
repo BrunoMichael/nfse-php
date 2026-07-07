@@ -4,5 +4,8 @@ namespace Nfse\Contract;
 
 interface DanfseRendererInterface
 {
-    public function render(\Nfse\Danfse\DanfseViewModel $viewModel): string;
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    public function render(array $data, string $qrCodeDataUri): string;
 }

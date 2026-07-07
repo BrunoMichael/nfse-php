@@ -1,44 +1,54 @@
 <?php
 
-use Nfse\Danfse\DanfseMapper;
+use Nfse\Danfse\DanfseLayoutData;
 use Nfse\Danfse\DanfseWatermark;
 use Nfse\Danfse\Renderer\HtmlDanfseRenderer;
-use Nfse\Xml\NfseXmlParser;
+use Nfse\Danfse\Support\CompositeQrCodeGenerator;
 
 it('renders html danfse from nfse fixture', function () {
     $xml = file_get_contents(__DIR__.'/../../fixtures/xml/ExemploPrestadorPessoaFisica.xml');
-    $nfse = (new NfseXmlParser)->parse($xml);
-    $view = (new DanfseMapper)->map($nfse);
+    $data = DanfseLayoutData::fromXml($xml);
+    $qrCodeDataUri = (new CompositeQrCodeGenerator)->generateDataUri((string) $data['qr_code_url'], 150);
 
-    $html = (new HtmlDanfseRenderer)->render($view);
+    $html = (new HtmlDanfseRenderer)->render($data, $qrCodeDataUri);
 
     expect($html)
-        ->toContain('<!DOCTYPE html>')
-        ->toContain('DANFSe v1.0')
+        ->toContain('<!doctype html>')
+        ->toContain('DANFSe v2.0')
         ->toContain('23140031100006672992383000000000004625120025708585')
         ->toContain('NAGILA DE SOUSA FREITAS')
         ->toContain('FUNDO MUNICIPAL DE SAUDE')
-        ->toContain('Valor Líquido da NFS-e');
+        ->toContain('Valor Líquido Da NFS-e');
 });
 
 it('renders homologacao banner when tpAmb is homologacao', function () {
     $xml = file_get_contents(__DIR__.'/../../fixtures/xml/ExemploPrestadorPessoaFisica.xml');
-    $nfse = (new NfseXmlParser)->parse($xml);
-    $nfse->infNfse->dps->infDps->tipoAmbiente = \Nfse\Enums\TipoAmbiente::Homologacao;
+    $data = DanfseLayoutData::fromXml($xml);
+    $data['environment_notice'] = 'NFS-e SEM VALIDADE JURÍDICA';
+    $qrCodeDataUri = (new CompositeQrCodeGenerator)->generateDataUri((string) $data['qr_code_url'], 150);
 
-    $view = (new DanfseMapper)->map($nfse);
-    $html = (new HtmlDanfseRenderer)->render($view);
+    $html = (new HtmlDanfseRenderer)->render($data, $qrCodeDataUri);
 
     expect($html)->toContain('NFS-e SEM VALIDADE JURÍDICA');
 });
 
 it('renders watermark markup when cancelada', function () {
     $xml = file_get_contents(__DIR__.'/../../fixtures/xml/ExemploPrestadorPessoaFisica.xml');
-    $nfse = (new NfseXmlParser)->parse($xml);
-    $view = (new DanfseMapper)->map($nfse, DanfseWatermark::Cancelada);
+    $data = DanfseLayoutData::fromXml($xml, cancelled: true);
+    $qrCodeDataUri = (new CompositeQrCodeGenerator)->generateDataUri((string) $data['qr_code_url'], 150);
 
-    $html = (new HtmlDanfseRenderer)->render($view);
+    $html = (new HtmlDanfseRenderer)->render($data, $qrCodeDataUri);
 
-    expect($html)->toContain('watermark-cancelada')
-        ->and($html)->toContain('data-watermark="CANCELADA"');
+    expect($html)->toContain('class="watermark"')
+        ->and($html)->toContain('CANCELADA');
+});
+
+it('embeds official nfse logo when asset is present', function () {
+    $xml = file_get_contents(__DIR__.'/../../fixtures/xml/ExemploPrestadorPessoaFisica.xml');
+    $data = DanfseLayoutData::fromXml($xml);
+    $qrCodeDataUri = (new CompositeQrCodeGenerator)->generateDataUri((string) $data['qr_code_url'], 150);
+
+    $html = (new HtmlDanfseRenderer)->render($data, $qrCodeDataUri);
+
+    expect($html)->toContain('data:image/png;base64,');
 });

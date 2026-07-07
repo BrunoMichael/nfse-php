@@ -3,28 +3,30 @@
 namespace Nfse\Service;
 
 use Nfse\Contract\DanfseRendererInterface;
-use Nfse\Danfse\DanfseMapper;
+use Nfse\Contract\QrCodeGeneratorInterface;
+use Nfse\Danfse\DanfseLayoutData;
 use Nfse\Danfse\DanfseOutputFormat;
 use Nfse\Danfse\DanfseWatermark;
 use Nfse\Danfse\Renderer\HtmlDanfseRenderer;
 use Nfse\Danfse\Renderer\PdfDanfseRenderer;
+use Nfse\Danfse\Support\CompositeQrCodeGenerator;
 use Nfse\Dto\Nfse\NfseData;
 use Nfse\Http\NfseContext;
-use Nfse\Xml\NfseXmlParser;
+use Nfse\Xml\NfseXmlBuilder;
 
 class DanfseService
 {
-    private DanfseMapper $mapper;
+    private QrCodeGeneratorInterface $qrCodeGenerator;
 
-    private NfseXmlParser $parser;
+    private NfseXmlBuilder $xmlBuilder;
 
     public function __construct(
         private NfseContext $context,
-        ?DanfseMapper $mapper = null,
-        ?NfseXmlParser $parser = null,
+        ?QrCodeGeneratorInterface $qrCodeGenerator = null,
+        ?NfseXmlBuilder $xmlBuilder = null,
     ) {
-        $this->mapper = $mapper ?? new DanfseMapper;
-        $this->parser = $parser ?? new NfseXmlParser;
+        $this->qrCodeGenerator = $qrCodeGenerator ?? new CompositeQrCodeGenerator;
+        $this->xmlBuilder = $xmlBuilder ?? new NfseXmlBuilder;
     }
 
     public function html(NfseData $nfse, ?DanfseWatermark $watermark = null): string
@@ -42,9 +44,11 @@ class DanfseService
         DanfseOutputFormat $format = DanfseOutputFormat::Html,
         ?DanfseWatermark $watermark = null,
     ): string {
-        $viewModel = $this->mapper->map($nfse, $watermark);
-
-        return $this->rendererFor($format)->render($viewModel);
+        return $this->renderFromXml(
+            $this->xmlBuilder->build($nfse),
+            $format,
+            $watermark,
+        );
     }
 
     public function gerarDeXml(
@@ -52,7 +56,31 @@ class DanfseService
         DanfseOutputFormat $format = DanfseOutputFormat::Html,
         ?DanfseWatermark $watermark = null,
     ): string {
-        return $this->gerar($this->parser->parse($xml), $format, $watermark);
+        return $this->renderFromXml($xml, $format, $watermark);
+    }
+
+    private function renderFromXml(
+        string $xml,
+        DanfseOutputFormat $format,
+        ?DanfseWatermark $watermark,
+    ): string {
+        [$cancelled, $substituted] = $this->watermarkFlags($watermark);
+        $data = DanfseLayoutData::fromXml($xml, $cancelled, $substituted);
+        $qrCodeDataUri = $this->qrCodeGenerator->generateDataUri((string) $data['qr_code_url'], 150);
+
+        return $this->rendererFor($format)->render($data, $qrCodeDataUri);
+    }
+
+    /**
+     * @return array{0: bool, 1: bool}
+     */
+    private function watermarkFlags(?DanfseWatermark $watermark): array
+    {
+        return match ($watermark) {
+            DanfseWatermark::Cancelada => [true, false],
+            DanfseWatermark::Substituída => [false, true],
+            default => [false, false],
+        };
     }
 
     private function rendererFor(DanfseOutputFormat $format): DanfseRendererInterface
